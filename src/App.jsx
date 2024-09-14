@@ -6,24 +6,47 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "./App.css"; // Import the external CSS file
 
+const FLOW_RATE_THRESHOLD = 100; // Example threshold value, adjust as needed
+const OVERFLOW_DURATION = 5000; // Duration in milliseconds to consider as overflow
+
 function App() {
   const [data, setData] = useState([]);
   const [flowRate, setFlowRate] = useState("");
   const [quantity, setQuantity] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [overflowTimeout, setOverflowTimeout] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const result = await axios.get("http://localhost:5000/api/water");
       setData(result.data);
+
+      // Check for overflow condition
+      const currentFlowRate = result.data[result.data.length - 1]?.flowRate;
+      if (currentFlowRate > FLOW_RATE_THRESHOLD) {
+        if (!overflowTimeout) {
+          const timeout = setTimeout(() => {
+            setIsOverflowing(true);
+            toast.error("Water is overflowing!");
+          }, OVERFLOW_DURATION);
+          setOverflowTimeout(timeout);
+        }
+      } else {
+        if (overflowTimeout) {
+          clearTimeout(overflowTimeout);
+          setOverflowTimeout(null);
+        }
+        setIsOverflowing(false);
+      }
     } catch (error) {
       console.error("Error fetching data", error);
       toast.error("Error fetching data");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [overflowTimeout]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -92,6 +115,9 @@ function App() {
         </button>
 
         {loading && <p className="loading-text">Loading...</p>}
+        {isOverflowing && (
+          <p className="overflow-alert">Water is overflowing!</p>
+        )}
         <h2 className="data-title">Data</h2>
         <ul className="data-list">
           {data.map((item) => (
